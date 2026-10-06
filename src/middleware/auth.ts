@@ -3,6 +3,7 @@ import type { PrismaClient, Role } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import type { Config } from '../config.js';
 import { AppError } from '../errors.js';
+import { isTrustedOrigin } from '../origin.js';
 
 export type AuthRequest = Request & { user: { id: string; role: Role }; sessionId: string };
 
@@ -54,7 +55,7 @@ export function requireTrustedOrigin(config: Config): RequestHandler {
   return (req, _res, next) => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
     const origin = req.headers.origin;
-    if (origin && origin !== config.CLIENT_ORIGIN)
+    if (origin && !isTrustedOrigin(origin, config))
       return next(new AppError(403, 'UNTRUSTED_ORIGIN', 'Request origin is not allowed.'));
     if (req.headers['sec-fetch-site'] === 'cross-site')
       return next(new AppError(403, 'UNTRUSTED_ORIGIN', 'Cross-site requests are not allowed.'));

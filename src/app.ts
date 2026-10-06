@@ -8,13 +8,17 @@ import type { Config } from './config.js';
 import { AppError, errorHandler } from './errors.js';
 import { apiRouter } from './routes/index.js';
 import { requireTrustedOrigin } from './middleware/auth.js';
+import { isTrustedOrigin } from './origin.js';
 
 export function createApp(db: PrismaClient, config: Config) {
   const app = express();
   app.disable('x-powered-by');
   if (config.TRUST_PROXY === '1') app.set('trust proxy', 1);
   app.use(helmet());
-  app.use(cors({ origin: config.CLIENT_ORIGIN, credentials: true }));
+  app.use(cors({
+    origin: (origin, callback) => callback(null, !!origin && isTrustedOrigin(origin, config)),
+    credentials: true
+  }));
   app.use(requireTrustedOrigin(config));
   app.use(express.json({ limit: '2mb' }));
   app.use(cookieParser());

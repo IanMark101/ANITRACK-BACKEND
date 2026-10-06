@@ -170,6 +170,30 @@ describe('Authentication API', () => {
     expect(database.users).toHaveLength(0);
   });
 
+  it('registers from the Vite loopback address in development', async () => {
+    const development = createApp(database.db, { ...testConfig, NODE_ENV: 'development' });
+    const response = await request(development)
+      .post('/api/auth/register')
+      .set('Origin', 'http://127.0.0.1:5173')
+      .set('Sec-Fetch-Site', 'same-origin')
+      .send(account);
+    expect(response.status).toBe(201);
+    expect(response.headers['access-control-allow-origin']).toBe('http://127.0.0.1:5173');
+    expect(database.users).toHaveLength(1);
+  });
+
+  it('does not extend development origin access to other ports or hosts', async () => {
+    const development = createApp(database.db, { ...testConfig, NODE_ENV: 'development' });
+    for (const origin of ['http://127.0.0.1:5174', 'http://192.168.1.2:5173', 'https://127.0.0.1:5173']) {
+      const response = await request(development).post('/api/auth/register').set('Origin', origin).send(account);
+      expect(response.status).toBe(403);
+      expect(response.headers['access-control-allow-origin']).toBeUndefined();
+    }
+    const production = createApp(database.db, { ...testConfig, NODE_ENV: 'production' });
+    expect((await request(production).post('/api/auth/register').set('Origin', 'http://127.0.0.1:5173').send(account)).status).toBe(403);
+    expect(database.users).toHaveLength(0);
+  });
+
   it('denies catalog writes to a member and protects watchlist routes', async () => {
     const login = await request(app).post('/api/auth/register').send(account);
     expect(
