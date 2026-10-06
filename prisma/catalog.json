@@ -1,0 +1,102 @@
+[
+  {
+    "title": "Komi Can't Communicate",
+    "genre": "Comedy",
+    "rating": 9.3,
+    "status": "Watching",
+    "image": "/images/komi.jpg",
+    "isFavorite": true,
+    "synopsis": "An extremely timid high school girl with severe social anxiety seeks to overcome her communication disorder and make 100 friends with the help of a classmate.",
+    "slug": "original-1"
+  },
+  {
+    "title": "Bleach: Thousand-Year Blood War",
+    "genre": "Supernatural",
+    "rating": 9.6,
+    "status": "Completed",
+    "image": "/images/bleach.jpg",
+    "isFavorite": true,
+    "synopsis": "The peace is suddenly broken when warning sirens blare through Soul Society as the Quincy king initiates a total war against the Soul Reapers.",
+    "slug": "original-2"
+  },
+  {
+    "title": "Jujutsu Kaisen",
+    "genre": "Supernatural",
+    "rating": 9.2,
+    "status": "Watching",
+    "image": "/images/jujutsukaisen.jpg",
+    "isFavorite": true,
+    "synopsis": "Yuji Itadori swallows a cursed finger to save his friends and joins Tokyo Jujutsu High to exorcise powerful curses alongside his classmates.",
+    "slug": "original-3"
+  },
+  {
+    "title": "Hell's Paradise (Jigokuraku)",
+    "genre": "Fantasy",
+    "rating": 9,
+    "status": "Watching",
+    "image": "/images/hellsparadise.jpg",
+    "isFavorite": false,
+    "synopsis": "Gabimaru the Hollow, an immortal ninja assassin on death row, is offered a royal pardon if he retrieves the Elixir of Immortality from a mysterious paradise.",
+    "slug": "original-4"
+  },
+  {
+    "title": "Mushoku Tensei: Jobless Reincarnation",
+    "genre": "Fantasy",
+    "rating": 9.5,
+    "status": "Watching",
+    "image": "/images/joblessreincarnation.jpg",
+    "isFavorite": true,
+    "synopsis": "A 34-year-old shut-in is reincarnated into a magical world as Rudeus Greyrat, resolving to conquer his past regrets and live his new life to the fullest.",
+    "slug": "original-5"
+  },
+  {
+    "title": "Vinland Saga",
+    "genre": "Drama",
+    "rating": 9.7,
+    "status": "Completed",
+    "image": "/images/vinlandsaga.jpg",
+    "isFavorite": true,
+    "synopsis": "Young Thorfinn embarks on a perilous quest of vengeance against his father's killer, navigating brutal Viking battles and philosophical growth.",
+    "slug": "original-6"
+  },
+  {
+    "title": "The Angel Next Door Spoils Me Rotten",
+    "genre": "Romance",
+    "rating": 8.9,
+    "status": "Completed",
+    "image": "/images/angelnextdoor.jpg",
+    "isFavorite": false,
+    "synopsis": "A slow and heartwarming romance unfolds between an unmotivated high school boy and the angel of the school after an umbrella is shared on a rainy day.",
+    "slug": "original-7"
+  },
+  {
+    "title": "One Piece",
+    "genre": "Adventure",
+    "rating": 9.4,
+    "status": "Watching",
+    "image": "/images/onepiece.jpg",
+    "isFavorite": true,
+    "synopsis": "Monkey D. Luffy and the Straw Hat Pirates sail across the Grand Line in search of the legendary One Piece treasure to become the next Pirate King.",
+    "slug": "original-8"
+  },
+  {
+    "title": "My Hero Academia",
+    "genre": "Action",
+    "rating": 8.8,
+    "status": "Completed",
+    "image": "/images/myheroacademia.jpg",
+    "isFavorite": false,
+    "synopsis": "Born without superpowers in a world where everyone has them, Izuku Midoriya inherits the power of the greatest hero, All Might, and attends UA High.",
+    "slug": "original-9"
+  },
+  {
+    "title": "Dragon Ball Super",
+    "genre": "Action",
+    "rating": 9.1,
+    "status": "Plan to Watch",
+    "image": "/images/dragonball.jpg",
+    "isFavorite": false,
+    "synopsis": "Goku and the Z-Fighters battle against gods, cosmic tournaments, and legendary warriors across the multiverse to reach new divine transformations.",
+    "slug": "original-10"
+  }
+]

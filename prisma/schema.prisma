@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  MEMBER
+  ADMIN
+}
+
+enum WatchStatus {
+  WATCHING
+  COMPLETED
+  PLAN_TO_WATCH
+}
+
+model User {
+  id             String   @id @default(cuid())
+  name           String
+  email          String   @unique
+  passwordHash   String
+  role           Role     @default(MEMBER)
+  spotlightId    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  watchlist      WatchlistEntry[]
+  customAnime    Anime[]
+  sessions       RefreshSession[]
+}
+
+model Anime {
+  id        String   @id @default(cuid())
+  slug      String?  @unique
+  title     String
+  genre     String
+  image     String
+  synopsis  String   @default("")
+  ownerId   String?
+  owner     User?    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  entries   WatchlistEntry[]
+  @@index([ownerId])
+}
+
+model WatchlistEntry {
+  id         String      @id @default(cuid())
+  userId     String
+  animeId    String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  anime      Anime       @relation(fields: [animeId], references: [id], onDelete: Cascade)
+  rating     Float       @default(8.5)
+  status     WatchStatus @default(PLAN_TO_WATCH)
+  isFavorite Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  @@unique([userId, animeId])
+  @@index([userId, status])
+}
+
+model RefreshSession {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  familyId  String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+}
