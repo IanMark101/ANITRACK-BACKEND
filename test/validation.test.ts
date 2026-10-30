@@ -30,4 +30,17 @@ describe('Partial updates and poster validation', () => {
       }).success
     ).toBe(false);
   });
+  it('accepts the packaged default artwork without accepting directory traversal', () => {
+    const input = { title: 'Custom anime', genre: 'Adventure' };
+    expect(
+      createEntrySchema.safeParse({
+        ...input,
+        image: '/images/editorial/next-chapter-landscape.webp'
+      }).success
+    ).toBe(true);
+    expect(
+      createEntrySchema.safeParse({ ...input, image: '/images/editorial/../../private.webp' })
+        .success
+    ).toBe(false);
+  });
 });

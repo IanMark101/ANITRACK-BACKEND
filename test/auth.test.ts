@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
@@ -17,6 +17,25 @@ describe('Authentication API', () => {
     email: 'mika@example.test',
     password: 'a-unique-password-483'
   };
+
+  it('keeps the refresh cookie on a temporary transaction failure and can recover without logging in again', async () => {
+    const agent = request.agent(app);
+    await agent.post('/api/auth/register').send(account).expect(201);
+    const transaction = vi.spyOn(database.db, '$transaction');
+    transaction.mockRejectedValueOnce(
+      Object.assign(new Error('Temporary transaction failure'), { code: 'P2028' })
+    );
+    const failed = await agent.post('/api/auth/refresh');
+    expect(failed.status).toBe(503);
+    expect(failed.headers['set-cookie']).toBeUndefined();
+    const recovered = await agent.post('/api/auth/refresh');
+    expect(recovered.status).toBe(200);
+    expect(recovered.body.user.email).toBe(account.email);
+    expect(transaction).toHaveBeenLastCalledWith(expect.any(Function), {
+      maxWait: 10000,
+      timeout: 20000
+    });
+  });
 
   it('registers with a bcrypt hash and exposes only public user fields', async () => {
     const response = await request(app)
@@ -184,13 +203,27 @@ describe('Authentication API', () => {
 
   it('does not extend development origin access to other ports or hosts', async () => {
     const development = createApp(database.db, { ...testConfig, NODE_ENV: 'development' });
-    for (const origin of ['http://127.0.0.1:5174', 'http://192.168.1.2:5173', 'https://127.0.0.1:5173']) {
-      const response = await request(development).post('/api/auth/register').set('Origin', origin).send(account);
+    for (const origin of [
+      'http://127.0.0.1:5174',
+      'http://192.168.1.2:5173',
+      'https://127.0.0.1:5173'
+    ]) {
+      const response = await request(development)
+        .post('/api/auth/register')
+        .set('Origin', origin)
+        .send(account);
       expect(response.status).toBe(403);
       expect(response.headers['access-control-allow-origin']).toBeUndefined();
     }
     const production = createApp(database.db, { ...testConfig, NODE_ENV: 'production' });
-    expect((await request(production).post('/api/auth/register').set('Origin', 'http://127.0.0.1:5173').send(account)).status).toBe(403);
+    expect(
+      (
+        await request(production)
+          .post('/api/auth/register')
+          .set('Origin', 'http://127.0.0.1:5173')
+          .send(account)
+      ).status
+    ).toBe(403);
     expect(database.users).toHaveLength(0);
   });
 

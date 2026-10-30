@@ -5,6 +5,7 @@ import type { PrismaClient } from '@prisma/client';
 import type { AuthRequest } from '../middleware/auth.js';
 import { loginSchema, registerSchema } from '../validation.js';
 import { publicUserSelect } from '../services/auth.service.js';
+import { AppError } from '../errors.js';
 
 export const cookieName = 'anitrack_refresh';
 export function createAuthController(service: AuthService, db: PrismaClient, config: Config) {
@@ -35,7 +36,8 @@ export function createAuthController(service: AuthService, db: PrismaClient, con
       try {
         sendSession(res, await service.refresh(req.cookies[cookieName]));
       } catch (error) {
-        res.clearCookie(cookieName, options);
+        // A database outage must not erase a valid refresh credential.
+        if (error instanceof AppError && error.status === 401) res.clearCookie(cookieName, options);
         next(error);
       }
     }) as RequestHandler,

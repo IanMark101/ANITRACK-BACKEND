@@ -8,12 +8,16 @@ import { createAuthController } from '../controllers/auth.controller.js';
 import { createWatchlistController } from '../controllers/watchlist.controller.js';
 import { createCatalogController } from '../controllers/catalog.controller.js';
 import { requireAdmin, requireAuth } from '../middleware/auth.js';
+import { createAnimeProvider } from '../services/anime-provider.js';
+import { discoveryRouter } from './discovery.js';
+import { assistantRouter } from './assistant.js';
 
 export function apiRouter(db: PrismaClient, config: Config, authLimit: RequestHandler) {
   const router = Router();
   const protect = requireAuth(db, config);
   const auth = createAuthController(createAuthService(db, config), db, config);
-  const watchlist = createWatchlistController(createWatchlistService(db));
+  const provider = createAnimeProvider();
+  const watchlist = createWatchlistController(createWatchlistService(db, provider));
   const catalog = createCatalogController(createCatalogService(db));
   router.post('/auth/register', authLimit, auth.register);
   router.post('/auth/login', authLimit, auth.login);
@@ -21,6 +25,8 @@ export function apiRouter(db: PrismaClient, config: Config, authLimit: RequestHa
   router.post('/auth/refresh', authLimit, auth.refresh);
   router.get('/auth/me', protect, auth.me);
   router.get('/anime/meta', catalog.meta);
+  router.use('/discovery', discoveryRouter(db, provider));
+  router.use('/assistant', assistantRouter(config, provider));
   router.get('/anime', catalog.list);
   router.get('/anime/:id', catalog.get);
   router.post('/anime', protect, requireAdmin, catalog.create);
@@ -28,6 +34,9 @@ export function apiRouter(db: PrismaClient, config: Config, authLimit: RequestHa
   router.delete('/anime/:id', protect, requireAdmin, catalog.remove);
   router.get('/watchlist', protect, watchlist.list);
   router.post('/watchlist', protect, watchlist.create);
+  router.post('/watchlist/import', protect, watchlist.importAnime);
+  router.get('/watchlist/calendar', protect, watchlist.calendar);
+  router.post('/watchlist/:id/progress', protect, watchlist.progress);
   router.post('/watchlist/reset', protect, watchlist.reset);
   router.put('/watchlist/spotlight', protect, watchlist.spotlight);
   router.get('/watchlist/:id', protect, watchlist.get);

@@ -8,6 +8,24 @@ const schema = z.object({
   DATABASE_URL: z.string().min(1, 'Set DATABASE_URL in anitrack-backend/.env'),
   DIRECT_URL: z.string().min(1, 'Set DIRECT_URL in anitrack-backend/.env'),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must contain at least 32 characters'),
+  GEMINI_API_KEY: z.string().trim().min(1).optional(),
+  GEMINI_MODEL: z
+    .string()
+    .regex(/^gemini-[a-zA-Z0-9.-]+$/)
+    .max(100)
+    .optional(),
+  GEMINI_FALLBACK_MODELS: z
+    .string()
+    .trim()
+    .max(500)
+    .refine((value) => {
+      const models = value.split(',').map((model) => model.trim());
+      return (
+        value === 'none' ||
+        (models.length <= 4 && models.every((model) => /^gemini-[a-zA-Z0-9.-]{1,93}$/.test(model)))
+      );
+    }, 'Use up to four comma-separated Gemini model IDs, or none.')
+    .optional(),
   CLIENT_ORIGIN: z.string().url().default('http://localhost:5173'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),

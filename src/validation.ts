@@ -27,7 +27,7 @@ const poster = z
   .string()
   .max(1_400_000)
   .refine((value) => {
-    if (/^\/images\/[a-z0-9-]+\.jpg$/.test(value)) return true;
+    if (/^\/images\/(?:[a-z0-9-]+\.jpg|editorial\/[a-z0-9-]+\.webp)$/.test(value)) return true;
     if (/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(value)) {
       return Buffer.from(value.split(',')[1], 'base64').length <= 1_048_576;
     }
@@ -43,21 +43,22 @@ const animeFields = z
     title: z.string().trim().min(1).max(200),
     genre: z.enum(genres),
     image: poster,
-    synopsis: z.string().trim().max(3000)
+    synopsis: z.string().trim().max(3000),
+    totalEpisodes: z.number().int().min(1).max(50000).nullable().optional()
   })
   .strict();
 export const animeSchema = animeFields.extend({
   image: poster.default('/images/komi.jpg'),
   synopsis: animeFields.shape.synopsis.default('')
 });
-export const updateAnimeSchema = animeFields.partial().refine(
-  (value) => Object.keys(value).length > 0,
-  'Submit at least one field.'
-);
+export const updateAnimeSchema = animeFields
+  .partial()
+  .refine((value) => Object.keys(value).length > 0, 'Submit at least one field.');
 const mutableEntryFields = z.object({
   rating: z.number().min(1).max(10),
   status: z.enum(statuses),
-  isFavorite: z.boolean()
+  isFavorite: z.boolean(),
+  episodesWatched: z.number().int().min(0).max(50000)
 });
 export const entryFields = z.object({
   rating: z.number().min(1).max(10).default(8.5),
@@ -75,3 +76,27 @@ export const updateEntrySchema = mutableEntryFields
 export const spotlightSchema = z
   .object({ entryId: z.string().min(1).max(100).nullable() })
   .strict();
+
+export const externalIdSchema = z.string().regex(/^[1-9]\d{0,8}$/, 'Invalid anime ID.');
+export const importAnimeSchema = z.object({ externalId: externalIdSchema }).strict();
+export const progressSchema = z.object({ delta: z.union([z.literal(1), z.literal(-1)]) }).strict();
+export const discoveryQuerySchema = z.object({
+  q: z.string().trim().max(100).default(''),
+  view: z.enum(['popular', 'top', 'seasonal', 'upcoming']).default('popular'),
+  page: z.coerce.number().int().min(1).max(500).default(1),
+  genre: z.enum(['', ...genres]).default(''),
+  year: z.coerce.number().int().min(1900).max(2100).optional(),
+  season: z.enum(['winter', 'spring', 'summer', 'fall']).optional()
+});
+export const pageQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).max(2500).default(1)
+});
+export const calendarQuerySchema = z.object({
+  week: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .refine((value) => {
+      const date = new Date(`${value}T00:00:00Z`);
+      return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+    }, 'Choose a valid calendar date.')
+});

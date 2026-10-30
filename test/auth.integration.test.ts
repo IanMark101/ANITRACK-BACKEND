@@ -134,5 +134,5 @@ describe.skipIf(!connection)('Real PostgreSQL authentication and watchlist', () 
       (await request(app).get('/api/auth/me').auth(refresh.body.accessToken, { type: 'bearer' }))
         .status
     ).toBe(401);
-  }, 20000);
+  }, 120000);
 });

@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import type { PrismaClient } from '@prisma/client';
 import type { Config } from '../config.js';
 import { AppError } from '../errors.js';
+import { transactionOptions } from '../transaction-options.js';
 
 export const publicUserSelect = {
   id: true,
@@ -73,7 +74,9 @@ export function createAuthService(db: PrismaClient, config: Config) {
     async refresh(token?: string) {
       if (!token) throw new AppError(401, 'UNAUTHENTICATED', 'Please sign in.');
       const result = await db.$transaction(async (tx) => {
-        const previous = await tx.refreshSession.findUnique({ where: { tokenHash: hash(token) } });
+        const previous = await tx.refreshSession.findUnique({
+          where: { tokenHash: hash(token) }
+        });
         if (!previous) return null;
         if (previous.revokedAt || previous.expiresAt <= new Date()) {
           await tx.refreshSession.updateMany({
@@ -108,7 +111,7 @@ export function createAuthService(db: PrismaClient, config: Config) {
           select: publicUserSelect
         });
         return { user, accessToken: accessToken(user.id, session.id), refreshToken };
-      });
+      }, transactionOptions);
       if (!result)
         throw new AppError(
           401,
