@@ -29,7 +29,7 @@ const redact = (value) =>
     .replace(/postgres(?:ql)?:\/\/[^\s"']+/gi, '[redacted database URL]')
     .replace(/[a-z0-9.-]+\.neon\.tech(?::\d+)?/gi, '[Neon host]');
 function run(args) {
-  const result = spawnSync(process.execPath, args, { env, encoding: 'utf8', timeout: 240000 });
+  const result = spawnSync(process.execPath, args, { env, encoding: 'utf8', timeout: 360000 });
   process.stdout.write(redact(result.stdout));
   process.stderr.write(redact(result.stderr));
   if (result.error || result.status !== 0)
@@ -56,6 +56,9 @@ try {
     'run',
     'test/auth.integration.test.ts',
     'test/discovery.integration.test.ts',
+    'test/account.integration.test.ts',
+    'test/collections.integration.test.ts',
+    '--maxWorkers=1',
     '--testTimeout=120000'
   ]);
 } catch (error) {

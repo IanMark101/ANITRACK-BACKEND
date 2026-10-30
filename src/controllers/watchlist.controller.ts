@@ -7,7 +7,8 @@ import {
   spotlightSchema,
   importAnimeSchema,
   progressSchema,
-  calendarQuerySchema
+  calendarQuerySchema,
+  listQuerySchema
 } from '../validation.js';
 
 export function createWatchlistController(service: ReturnType<typeof createWatchlistService>) {
@@ -29,7 +30,10 @@ export function createWatchlistController(service: ReturnType<typeof createWatch
       res.json(
         await service.calendar(userId(req), calendarQuerySchema.parse(req.query).week)
       )) as RequestHandler,
-    list: (async (req, res) => res.json(await service.list(userId(req)))) as RequestHandler,
+    list: (async (req, res) => {
+      const query = listQuerySchema.parse(req.query);
+      res.json(await service.list(userId(req), query.page, Math.min(query.limit, 20)));
+    }) as RequestHandler,
     get: (async (req, res) =>
       res.json({ item: await service.get(userId(req), id(req)) })) as RequestHandler,
     create: (async (req, res) =>

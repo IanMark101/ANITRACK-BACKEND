@@ -9,7 +9,10 @@ export const testConfig: Config = {
   CLIENT_ORIGIN: 'http://localhost:5173',
   PORT: 3001,
   NODE_ENV: 'test',
-  TRUST_PROXY: '0'
+  TRUST_PROXY: '0',
+  SMTP_PORT: 587, SMTP_SECURE: '0', COLLECTION_LIMIT: 500,
+  ASSISTANT_DAILY_GENERATIONS: 100, ASSISTANT_DAILY_BUDGET_USD: 5,
+  ASSISTANT_INPUT_USD_PER_MILLION: 6, ASSISTANT_OUTPUT_USD_PER_MILLION: 30
 };
 
 // Test-only database double. Production always uses the PostgreSQL Prisma client.

@@ -11,24 +11,33 @@ import { requireAdmin, requireAuth } from '../middleware/auth.js';
 import { createAnimeProvider } from '../services/anime-provider.js';
 import { discoveryRouter } from './discovery.js';
 import { assistantRouter } from './assistant.js';
+import { accountRouter } from './account.js';
+import { createAssistantBudget } from '../services/assistant-budget.js';
+import type { AccountMailer } from '../services/mail.service.js';
+import { collectionsRouter } from './collections.js';
 
-export function apiRouter(db: PrismaClient, config: Config, authLimit: RequestHandler) {
+export function apiRouter(db: PrismaClient, config: Config, authLimit: RequestHandler, mailer?: AccountMailer) {
   const router = Router();
   const protect = requireAuth(db, config);
   const auth = createAuthController(createAuthService(db, config), db, config);
   const provider = createAnimeProvider();
-  const watchlist = createWatchlistController(createWatchlistService(db, provider));
+  const watchlist = createWatchlistController(createWatchlistService(db, provider, config.COLLECTION_LIMIT));
   const catalog = createCatalogController(createCatalogService(db));
   router.post('/auth/register', authLimit, auth.register);
   router.post('/auth/login', authLimit, auth.login);
   router.post('/auth/logout', auth.logout);
   router.post('/auth/refresh', authLimit, auth.refresh);
   router.get('/auth/me', protect, auth.me);
-  router.get('/anime/meta', catalog.meta);
-  router.use('/discovery', discoveryRouter(db, provider));
-  router.use('/assistant', assistantRouter(config, provider));
-  router.get('/anime', catalog.list);
-  router.get('/anime/:id', catalog.get);
+  router.use(accountRouter(db, config, authLimit, mailer));
+  router.use('/collections', collectionsRouter(db, config));
+  router.get('/anime/meta', protect, catalog.meta);
+  router.use('/discovery', protect, discoveryRouter(db, provider));
+  router.use('/assistant', protect, assistantRouter(config, provider, undefined, createAssistantBudget(db, config)));
+  router.get('/admin/usage', protect, requireAdmin, async (_req, res) => {
+    res.json({ days: await db.assistantUsageDay.findMany({ orderBy: { day: 'desc' }, take: 30 }) });
+  });
+  router.get('/anime', protect, catalog.list);
+  router.get('/anime/:id', protect, catalog.get);
   router.post('/anime', protect, requireAdmin, catalog.create);
   router.patch('/anime/:id', protect, requireAdmin, catalog.update);
   router.delete('/anime/:id', protect, requireAdmin, catalog.remove);

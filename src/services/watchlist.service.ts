@@ -12,7 +12,11 @@ const toStatus: Record<string, WatchStatus> = {
 };
 const fromStatus = { WATCHING: 'Watching', COMPLETED: 'Completed', PLAN_TO_WATCH: 'Plan to Watch' };
 type Entry = Prisma.WatchlistEntryGetPayload<{ include: { anime: true } }>;
-const serialize = (entry: Entry) => ({
+const animeSummary = { title: true, genre: true, image: true, synopsis: true,
+  provider: true, externalId: true, totalEpisodes: true } as const;
+type SummaryEntry = Pick<Entry, 'id' | 'animeId' | 'episodesWatched' | 'rating' | 'status' | 'isFavorite' | 'createdAt'>
+  & { anime: Pick<Entry['anime'], keyof typeof animeSummary> };
+const serialize = (entry: SummaryEntry) => ({
   id: entry.id,
   animeId: entry.animeId,
   title: entry.anime.title,
@@ -64,7 +68,14 @@ export function progressChanges(
   };
 }
 
-export function createWatchlistService(db: PrismaClient, provider?: AnimeProvider) {
+export function createWatchlistService(db: PrismaClient, provider?: AnimeProvider, collectionLimit = 500) {
+  async function lockUser(tx: Prisma.TransactionClient, userId: string) {
+    await tx.user.update({ where: { id: userId }, data: { id: userId }, select: { id: true } });
+  }
+  async function assertRoom(tx: Prisma.TransactionClient, userId: string) {
+    if (await tx.watchlistEntry.count({ where: { userId } }) >= collectionLimit)
+      throw new AppError(409, 'COLLECTION_LIMIT', `Your collection can contain up to ${collectionLimit} titles. Remove a title before adding another.`);
+  }
   async function ownedEntry(userId: string, id: string) {
     const entry = await db.watchlistEntry.findFirst({
       where: { id, userId },
@@ -74,22 +85,26 @@ export function createWatchlistService(db: PrismaClient, provider?: AnimeProvide
     return entry;
   }
   return {
-    async list(userId: string) {
+    async list(userId: string, page = 1, limit = 20) {
       const [entries, user] = await Promise.all([
         db.watchlistEntry.findMany({
           where: { userId },
-          include: { anime: true },
-          orderBy: { createdAt: 'desc' }
+          include: { anime: { select: animeSummary } },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          skip: (page - 1) * limit, take: limit + 1
         }),
         db.user.findUniqueOrThrow({ where: { id: userId }, select: { spotlightId: true } })
       ]);
-      return { items: entries.map(serialize), spotlightId: user.spotlightId };
+      return { items: entries.slice(0, limit).map(serialize), spotlightId: user.spotlightId,
+        page, hasNext: entries.length > limit };
     },
     async get(userId: string, id: string) {
       return serialize(await ownedEntry(userId, id));
     },
     async create(userId: string, input: z.infer<typeof createEntrySchema>) {
       const entry = await db.$transaction(async (tx) => {
+        await lockUser(tx, userId);
+        await assertRoom(tx, userId);
         let animeId: string;
         let totalEpisodes: number | null;
         if ('animeId' in input) {
@@ -160,6 +175,7 @@ export function createWatchlistService(db: PrismaClient, provider?: AnimeProvide
         details = saved.details as unknown as ProviderAnime;
       }
       return db.$transaction(async (tx) => {
+        await lockUser(tx, userId);
         const data = {
           title: details.title,
           image: details.image,
@@ -177,6 +193,7 @@ export function createWatchlistService(db: PrismaClient, provider?: AnimeProvide
         const previous = await tx.watchlistEntry.findUnique({
           where: { userId_animeId: { userId, animeId: anime.id } }
         });
+        if (!previous) await assertRoom(tx, userId);
         const entry = await tx.watchlistEntry.upsert({
           where: { userId_animeId: { userId, animeId: anime.id } },
           create: { userId, animeId: anime.id },
@@ -328,7 +345,10 @@ export function createWatchlistService(db: PrismaClient, provider?: AnimeProvide
           'CATALOG_EMPTY',
           'The catalog has not been seeded. Please add anime manually.'
         );
+      if (catalog.length > collectionLimit)
+        throw new AppError(409, 'COLLECTION_LIMIT', 'The starter collection exceeds your collection limit.');
       await db.$transaction(async (tx) => {
+        await lockUser(tx, userId);
         await tx.watchlistEntry.deleteMany({ where: { userId } });
         await tx.anime.deleteMany({ where: { ownerId: userId } });
         await tx.watchlistEntry.createMany({

@@ -18,7 +18,7 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
       error: {
         code: 'VALIDATION_ERROR',
         message: 'Please check the submitted fields.',
-        details: error.issues.map((issue) => ({
+        details: error.issues.slice(0, 20).map((issue) => ({
           field: issue.path.join('.'),
           message: issue.message
         }))
@@ -30,14 +30,16 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     res.status(409).json({ error: { code: 'CONFLICT', message: 'This record already exists.' } });
   } else if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
     res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Record not found.' } });
-  } else if (error.type === 'entity.too.large') {
+  } else if (error?.type === 'encoding.unsupported') {
+    res.status(415).json({ error: { code: 'UNSUPPORTED_ENCODING', message: 'Send an uncompressed JSON request.' } });
+  } else if (error?.type === 'entity.too.large') {
     res
       .status(413)
-      .json({ error: { code: 'PAYLOAD_TOO_LARGE', message: 'Image must be smaller than 1 MB.' } });
+      .json({ error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request is too large. Use an image under 256 KB.' } });
   } else if (error instanceof SyntaxError && 'body' in error) {
     res.status(400).json({ error: { code: 'INVALID_JSON', message: 'Invalid JSON body.' } });
   } else {
-    console.error('Request failed:', error.code ?? error.name ?? 'Unknown error');
+    console.error('Request failed:', error?.code ?? error?.name ?? 'Unknown error');
     res.status(503).json({
       error: {
         code: 'SERVICE_UNAVAILABLE',

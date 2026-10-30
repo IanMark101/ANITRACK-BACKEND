@@ -173,7 +173,7 @@ describe.skipIf(!connection)('Imported anime and progress in isolated PostgreSQL
       .auth(token, { type: 'bearer' });
     expect(collection.status).toBe(200);
     expect(collection.body.items[0]).toMatchObject({ id: entryId, episodesWatched: 2 });
-    const details = await request(restarted).get(`/api/discovery/${id}`);
+    const details = await request(restarted).get(`/api/discovery/${id}`).auth(token, { type: 'bearer' });
     expect(details.status).toBe(200);
     expect(details.body.stale).toBe(true);
     expect(details.body.item.title).toBe('Integration anime');

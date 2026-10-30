@@ -6,3 +6,4 @@ dist/
 .integration.env
 coverage/
 *.log
+backups/

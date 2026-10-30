@@ -1,11 +1,14 @@
 import type { RequestHandler } from 'express';
 import type { createCatalogService } from '../services/catalog.service.js';
-import { animeSchema, updateAnimeSchema } from '../validation.js';
+import { animeSchema, updateAnimeSchema, listQuerySchema } from '../validation.js';
 
 export function createCatalogController(service: ReturnType<typeof createCatalogService>) {
   const id = (req: Parameters<RequestHandler>[0]) => String(req.params.id);
   return {
-    list: (async (_req, res) => res.json(await service.list())) as RequestHandler,
+    list: (async (req, res) => {
+      const query = listQuerySchema.parse(req.query);
+      res.json(await service.list(query.page, query.limit));
+    }) as RequestHandler,
     meta: (async (_req, res) => res.json(await service.meta())) as RequestHandler,
     get: (async (req, res) => res.json({ item: await service.get(id(req)) })) as RequestHandler,
     create: (async (req, res) =>

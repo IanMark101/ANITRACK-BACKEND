@@ -24,6 +24,7 @@ model User {
   name         String
   email        String           @unique
   passwordHash String
+  emailVerifiedAt DateTime?
   role         Role             @default(MEMBER)
   spotlightId  String?
   createdAt    DateTime         @default(now())
@@ -31,6 +32,8 @@ model User {
   watchlist    WatchlistEntry[]
   customAnime  Anime[]
   sessions     RefreshSession[]
+  accountTokens AccountToken[]
+  collections Collection[]
 }
 
 model Anime {
@@ -66,6 +69,7 @@ model WatchlistEntry {
   episodesWatched Int         @default(0)
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
+  collectionItems CollectionItem[]
 
   @@unique([userId, animeId])
   @@index([userId, status])
@@ -84,4 +88,51 @@ model RefreshSession {
   @@index([userId])
   @@index([familyId])
   @@index([expiresAt])
+}
+
+enum AccountTokenPurpose {
+  PASSWORD_RESET
+  EMAIL_VERIFICATION
+}
+
+model AccountToken {
+  id        String @id @default(cuid())
+  tokenHash String @unique
+  purpose   AccountTokenPurpose
+  userId    String
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([userId, purpose])
+  @@index([expiresAt])
+}
+
+model AssistantUsageDay {
+  day DateTime @id @db.Date
+  attempts Int @default(0)
+  reservedMicros Int @default(0)
+  inputTokens Int @default(0)
+  outputTokens Int @default(0)
+}
+
+model Collection {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name String
+  description String @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  items CollectionItem[]
+  @@index([userId, createdAt])
+}
+
+model CollectionItem {
+  collectionId String
+  entryId String
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  entry WatchlistEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  position Int @default(0)
+  @@id([collectionId, entryId])
+  @@index([entryId])
 }

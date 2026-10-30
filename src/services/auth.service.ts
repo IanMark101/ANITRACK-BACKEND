@@ -11,6 +11,7 @@ export const publicUserSelect = {
   name: true,
   email: true,
   role: true,
+  emailVerifiedAt: true,
   createdAt: true,
   updatedAt: true
 } as const;

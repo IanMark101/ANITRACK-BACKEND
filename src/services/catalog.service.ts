@@ -6,16 +6,20 @@ import { AppError } from '../errors.js';
 
 export function createCatalogService(db: PrismaClient) {
   return {
-    async list() {
+    async list(page = 1, limit = 50) {
+      const items = await db.anime.findMany({ where: { ownerId: null },
+        select: { id: true, title: true, genre: true, image: true, synopsis: true,
+          provider: true, externalId: true, totalEpisodes: true },
+        orderBy: [{ title: 'asc' }, { id: 'asc' }], skip: (page - 1) * limit, take: limit + 1 });
       return {
-        items: await db.anime.findMany({ where: { ownerId: null }, orderBy: { title: 'asc' } })
+        items: items.slice(0, limit), page, hasNext: items.length > limit
       };
     },
     async meta() {
       const posters = await db.anime.findMany({
         where: { ownerId: null },
         select: { id: true, title: true, image: true },
-        orderBy: { title: 'asc' }
+        orderBy: { title: 'asc' }, take: 20
       });
       return { genres, statuses, posters };
     },

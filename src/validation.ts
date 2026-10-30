@@ -23,13 +23,23 @@ export const registerSchema = z
   .object({ name: z.string().trim().min(2).max(80), email, password })
   .strict();
 export const loginSchema = z.object({ email, password: z.string().min(1).max(256) }).strict();
+export const emailRequestSchema = z.object({ email }).strict();
+export const accountTokenSchema = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{43}$/) }).strict();
+export const resetPasswordSchema = accountTokenSchema.extend({ password }).strict();
+export const changePasswordSchema = z.object({ currentPassword: z.string().min(1).max(256), password }).strict();
+export const updateProfileSchema = z.object({ name: z.string().trim().min(2).max(80) }).strict();
+export const deleteAccountSchema = z.object({ password: z.string().min(1).max(256), confirmation: z.literal('DELETE') }).strict();
+export const listQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).max(10000).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50)
+});
 const poster = z
   .string()
-  .max(1_400_000)
+  .max(360_000)
   .refine((value) => {
     if (/^\/images\/(?:[a-z0-9-]+\.jpg|editorial\/[a-z0-9-]+\.webp)$/.test(value)) return true;
     if (/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(value)) {
-      return Buffer.from(value.split(',')[1], 'base64').length <= 1_048_576;
+      return Buffer.from(value.split(',')[1], 'base64').length <= 262_144;
     }
     try {
       const url = new URL(value);
@@ -37,7 +47,7 @@ const poster = z
     } catch {
       return false;
     }
-  }, 'Use a HTTP(S) image URL, a packaged poster, or a JPEG/PNG/WebP under 1 MB.');
+  }, 'Use a HTTP(S) image URL, a packaged poster, or a JPEG/PNG/WebP under 256 KB.');
 const animeFields = z
   .object({
     title: z.string().trim().min(1).max(200),

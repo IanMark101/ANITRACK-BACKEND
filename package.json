@@ -9,12 +9,13 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --exclude '**/*.integration.test.ts' --testTimeout=20000",
-    "test:integration": "vitest run test/auth.integration.test.ts test/discovery.integration.test.ts",
+    "test:integration": "vitest run test/auth.integration.test.ts test/discovery.integration.test.ts test/account.integration.test.ts test/collections.integration.test.ts --testTimeout=120000",
     "test:isolated": "node scripts/test-isolated.mjs",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
+    "db:backup": "node scripts/backup.mjs",
     "lint": "eslint ."
   },
   "prisma": {
@@ -30,25 +31,27 @@
     "express-rate-limit": "^8.1.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
-    "zod": "^4.1.12"
+    "nodemailer": "^10.3.1",
+    "zod": "^4.6.6"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.0",
     "@types/bcrypt": "^6.0.0",
     "@types/cookie-parser": "^1.4.9",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.8.1",
+    "@types/nodemailer": "^8.0.2",
     "@types/supertest": "^6.0.3",
+    "eslint": "^9.39.0",
+    "globals": "^16.5.0",
     "prisma": "6.19.3",
     "supertest": "^7.1.4",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.11",
-    "@eslint/js": "^9.39.0",
-    "eslint": "^9.39.0",
-    "globals": "^16.5.0",
-    "typescript-eslint": "^8.46.1"
+    "typescript-eslint": "^8.46.1",
+    "vitest": "^4.1.12"
   },
   "engines": {
     "node": ">=22.12"

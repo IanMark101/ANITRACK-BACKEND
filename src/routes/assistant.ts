@@ -8,14 +8,16 @@ import {
   createGeminiInterpreter,
   type AssistantInterpreter
 } from '../services/anime-assistant.js';
+import type { GenerationBudget } from '../services/assistant-budget.js';
 
 export function assistantRouter(
   config: Config,
   provider: Pick<AnimeProvider, 'search'>,
-  interpreter: AssistantInterpreter = createGeminiInterpreter(config)
+  interpreter?: AssistantInterpreter,
+  budget?: GenerationBudget
 ) {
   const router = Router();
-  const assistant = createAnimeAssistant(provider, interpreter);
+  const assistant = createAnimeAssistant(provider, interpreter ?? createGeminiInterpreter(config, fetch, budget));
   router.post(
     '/',
     rateLimit({

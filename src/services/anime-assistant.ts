@@ -3,16 +3,21 @@ import type { Config } from '../config.js';
 import { AppError } from '../errors.js';
 import { genres } from '../validation.js';
 import type { AnimeProvider, ProviderAnime } from './anime-provider.js';
+import type { GenerationBudget } from './assistant-budget.js';
+
+const boundedArray = <T extends z.ZodType>(item: T, maximum: number) =>
+  z.unknown().superRefine((value, context) => {
+    if (Array.isArray(value) && value.length > maximum)
+      context.addIssue({ code: 'too_big', origin: 'array', maximum, inclusive: true,
+        message: `Submit at most ${maximum} items.` });
+  }).pipe(z.array(item).max(maximum));
 
 export const assistantInput = z
   .object({
     mode: z.enum(['identify', 'recommend']),
     message: z.string().trim().min(3).max(1200),
-    context: z.array(z.string().trim().min(1).max(1200)).max(3).default([]),
-    excludeIds: z
-      .array(z.string().regex(/^[1-9]\d{0,8}$/))
-      .max(300)
-      .default([])
+    context: boundedArray(z.string().trim().min(1).max(1200), 3).default([]),
+    excludeIds: boundedArray(z.string().regex(/^[1-9]\d{0,8}$/), 300).default([])
   })
   .strict();
 export type AssistantInput = z.infer<typeof assistantInput>;
@@ -107,7 +112,8 @@ const modelsWithMinimalThinking = new Set([
 
 export function createGeminiInterpreter(
   config: Pick<Config, 'GEMINI_API_KEY' | 'GEMINI_MODEL' | 'GEMINI_FALLBACK_MODELS'>,
-  fetcher: typeof fetch = fetch
+  fetcher: typeof fetch = fetch,
+  budget?: GenerationBudget
 ): AssistantInterpreter {
   const backups = config.GEMINI_FALLBACK_MODELS ?? 'gemini-3.1-flash-lite,gemini-3.6-flash';
   const models = [
@@ -136,6 +142,9 @@ export function createGeminiInterpreter(
     });
     // Try each available model once; the shared search deadline also bounds all attempts.
     for (const model of ready) {
+      if (signal.aborted) throw unavailable();
+      const inputBytes = Buffer.byteLength(instruction + JSON.stringify(data) + JSON.stringify(z.toJSONSchema(schema)));
+      const recordUsage = await budget?.reserve(inputBytes, 6000);
       if (signal.aborted) throw unavailable();
       try {
         const response = await fetcher(
@@ -180,6 +189,7 @@ export function createGeminiInterpreter(
           throw unavailable();
         }
         const payload = await response.json();
+        await recordUsage?.(payload.usage);
         if (payload.status === 'incomplete') {
           cooldowns.set(model, { until: Date.now() + 30000, quota: false });
           continue;

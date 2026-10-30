@@ -1,14 +1,17 @@
 import { loadConfig } from './config.js';
 import { prisma } from './db.js';
 import { createApp } from './app.js';
+import { startMaintenance } from './maintenance.js';
 
 try {
   const config = loadConfig();
+  const stopMaintenance = startMaintenance(prisma);
   const server = createApp(prisma, config).listen(config.PORT, () =>
     console.log(`AniTrack API listening on http://localhost:${config.PORT}`)
   );
   for (const signal of ['SIGINT', 'SIGTERM'])
     process.on(signal, () => {
+      stopMaintenance();
       server.close(async () => {
         await prisma.$disconnect();
         process.exit(0);
