@@ -27,6 +27,10 @@ const schema = z.object({
     }, 'Use up to four comma-separated Gemini model IDs, or none.')
     .optional(),
   CLIENT_ORIGIN: z.string().url().default('http://localhost:5173'),
+  ACCOUNT_LINK_ORIGIN: z.string().url().refine(value => {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) && url.origin === value;
+  }, 'Use an HTTP(S) origin without a path, credentials, query or fragment.').optional(),
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   TRUST_PROXY: z.enum(['0', '1']).default('0'),
@@ -54,6 +58,8 @@ export function loadConfig(): Config {
   if (result.data.NODE_ENV === 'production' && !result.data.CLIENT_ORIGIN.startsWith('https://')) {
     throw new Error('Production CLIENT_ORIGIN must use HTTPS.');
   }
+  if (result.data.NODE_ENV === 'production' && result.data.ACCOUNT_LINK_ORIGIN && !result.data.ACCOUNT_LINK_ORIGIN.startsWith('https://'))
+    throw new Error('Production ACCOUNT_LINK_ORIGIN must use HTTPS.');
   if ((result.data.SMTP_USER && !result.data.SMTP_PASSWORD) || (!result.data.SMTP_USER && result.data.SMTP_PASSWORD))
     throw new Error('Set both SMTP_USER and SMTP_PASSWORD.');
   if (result.data.SMTP_HOST && !result.data.MAIL_FROM)

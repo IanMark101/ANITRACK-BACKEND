@@ -20,7 +20,7 @@ export function createAccountMailer(config: Config): AccountMailer {
     async send(to, purpose, token) {
       if (!transport) throw new AppError(503, 'EMAIL_UNAVAILABLE', 'Account email is not configured yet. Please try again later.');
       const reset = purpose === 'PASSWORD_RESET';
-      const url = new URL(reset ? '/reset-password' : '/verify-email', config.CLIENT_ORIGIN);
+      const url = new URL(reset ? '/reset-password' : '/verify-email', config.ACCOUNT_LINK_ORIGIN || config.CLIENT_ORIGIN);
       // Fragments stay out of HTTP access logs and referrer headers.
       url.hash = new URLSearchParams({ token }).toString();
       try {

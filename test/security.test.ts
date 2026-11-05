@@ -20,8 +20,10 @@ describe('Request resource boundaries', () => {
     if (!result.success) expect(result.error.issues).toHaveLength(1);
   });
   it('bounds collection membership input before per-title validation', async () => {
-    const app = createApp(testDatabase().db, testConfig);
+    const database = testDatabase();
+    const app = createApp(database.db, testConfig);
     const registered = await request(app).post('/api/auth/register').send({ name: 'Boundary tester', email: 'boundary@example.test', password: 'boundary-test-password' }).expect(201);
+    database.users[0].emailVerifiedAt = new Date();
     const result = await request(app).post('/api/collections/unused/items')
       .auth(registered.body.accessToken, { type: 'bearer' }).send({ entryIds: Array(10000).fill({}) });
     expect(result.status).toBe(400);

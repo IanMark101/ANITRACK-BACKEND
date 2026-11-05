@@ -17,10 +17,22 @@ export function createAccountService(db: PrismaClient, mailer: AccountMailer) {
   async function issue(userId: string, email: string, purpose: AccountTokenPurpose) {
     const token = randomBytes(32).toString('base64url');
     // A valid previous link stays usable if delivery of a new link fails.
-    const row = await db.accountToken.create({ data: { userId, purpose, tokenHash: hash(token),
-      expiresAt: new Date(Date.now() + (purpose === 'PASSWORD_RESET' ? 30 * 60_000 : 86400_000)) } });
+    const row = await db.$transaction(async tx => {
+      // Serialize verification requests across processes without relying on an IP-only limit.
+      if (purpose === 'EMAIL_VERIFICATION') {
+        const user = await tx.user.update({ where: { id: userId }, data: { updatedAt: new Date() } });
+        if (user.emailVerifiedAt) return null;
+        const recent = await tx.accountToken.findFirst({ where: { userId, purpose,
+          createdAt: { gt: new Date(Date.now() - 60_000) } } });
+        if (recent) throw new AppError(429, 'VERIFICATION_COOLDOWN', 'Wait a minute before requesting another verification email.');
+      }
+      return tx.accountToken.create({ data: { userId, purpose, tokenHash: hash(token),
+        expiresAt: new Date(Date.now() + (purpose === 'PASSWORD_RESET' ? 30 * 60_000 : 86400_000)) } });
+    }, transactionOptions);
+    if (!row) return false;
     try { await mailer.send(email, purpose, token); }
     catch (error) { await db.accountToken.deleteMany({ where: { id: row.id } }); throw error; }
+    return true;
   }
   return {
     async requestReset(email: string) {
@@ -32,7 +44,10 @@ export function createAccountService(db: PrismaClient, mailer: AccountMailer) {
     },
     async requestVerification(userId: string) {
       const user = await db.user.findUniqueOrThrow({ where: { id: userId } });
-      if (!user.emailVerifiedAt) await issue(userId, user.email, 'EMAIL_VERIFICATION');
+      if (!user.emailVerifiedAt && !mailer.available)
+        throw new AppError(503, 'EMAIL_UNAVAILABLE', 'Account email is not configured yet. Please try again later.');
+      if (!user.emailVerifiedAt) return issue(userId, user.email, 'EMAIL_VERIFICATION');
+      return false;
     },
     async consume(token: string, purpose: AccountTokenPurpose, password?: string) {
       const passwordHash = password ? await bcrypt.hash(password, 12) : undefined;
@@ -70,3 +85,4 @@ export function createAccountService(db: PrismaClient, mailer: AccountMailer) {
     }
   };
 }
+export type AccountService = ReturnType<typeof createAccountService>;

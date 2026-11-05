@@ -27,6 +27,8 @@ describe.skipIf(!connection)('Real PostgreSQL authentication and watchlist', () 
     };
     const signup = await request(app).post('/api/auth/register').send(account);
     expect(signup.status).toBe(201);
+    // This suite exercises an already-verified member; the verification flow has its own suite.
+    await db.user.update({ where: { id: signup.body.user.id }, data: { emailVerifiedAt: new Date() } });
     const login = await request(app)
       .post('/api/auth/login')
       .send({ email: account.email, password: account.password });
@@ -53,6 +55,7 @@ describe.skipIf(!connection)('Real PostgreSQL authentication and watchlist', () 
     const other = await request(app)
       .post('/api/auth/register')
       .send({ ...account, email: emails[1] });
+    await db.user.update({ where: { id: other.body.user.id }, data: { emailVerifiedAt: new Date() } });
     expect(
       (
         await request(app)

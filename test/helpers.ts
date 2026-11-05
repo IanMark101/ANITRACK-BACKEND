@@ -19,8 +19,10 @@ export const testConfig: Config = {
 export function testDatabase() {
   const users: any[] = [];
   const sessions: any[] = [];
+  const accountTokens: any[] = [];
   const matches = (row: any, where: any) =>
-    Object.entries(where).every(([key, value]) => row[key] === value);
+    Object.entries(where).every(([key, value]: [string, any]) =>
+      value && typeof value === 'object' && 'gt' in value ? row[key] > value.gt : row[key] === value);
   const project = (row: any, select: any) =>
     select ? Object.fromEntries(Object.keys(select).map((key) => [key, row[key]])) : { ...row };
   const db: any = {
@@ -38,12 +40,33 @@ export function testDatabase() {
         const user = {
           id: randomUUID(),
           role: 'MEMBER',
+          emailVerifiedAt: null,
           createdAt: new Date(),
           updatedAt: new Date(),
           ...data
         };
         users.push(user);
         return project(user, select);
+      },
+      async update({ where, data, select }: any) {
+        const user = users.find(row => matches(row, where));
+        if (!user) throw new Error('Not found');
+        Object.assign(user, data);
+        return project(user, select);
+      }
+    },
+    accountToken: {
+      async create({ data }: any) {
+        const row = { id: randomUUID(), createdAt: new Date(), ...data };
+        accountTokens.push(row);
+        return { ...row };
+      },
+      async findFirst({ where }: any) { return accountTokens.find(row => matches(row, where)) ?? null; },
+      async findUnique({ where }: any) { return accountTokens.find(row => matches(row, where)) ?? null; },
+      async deleteMany({ where }: any) {
+        const found = accountTokens.filter(row => matches(row, where));
+        for (const row of found) accountTokens.splice(accountTokens.indexOf(row), 1);
+        return { count: found.length };
       }
     },
     refreshSession: {
@@ -78,5 +101,5 @@ export function testDatabase() {
       return callback(db);
     }
   };
-  return { db: db as PrismaClient, users, sessions };
+  return { db: db as PrismaClient, users, sessions, accountTokens };
 }

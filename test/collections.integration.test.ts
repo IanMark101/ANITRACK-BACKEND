@@ -15,6 +15,7 @@ describe.skipIf(!connection)('Private collections in isolated PostgreSQL', () =>
     const tokens: string[] = [];
     for (const email of emails) {
       const response = await request(app).post('/api/auth/register').send({ email, name: 'Collections tester', password: 'temporary-collections-password-1928' }).expect(201);
+      await db.user.update({ where: { id: response.body.user.id }, data: { emailVerifiedAt: new Date() } });
       tokens.push(response.body.accessToken);
     }
     const own = tokens[0]!;

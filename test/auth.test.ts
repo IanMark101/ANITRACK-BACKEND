@@ -18,6 +18,16 @@ describe('Authentication API', () => {
     password: 'a-unique-password-483'
   };
 
+  it('treats an absent session as a normal guest while rejecting invalid credentials and private access', async () => {
+    const guest = await request(app).post('/api/auth/refresh').expect(204);
+    expect(guest.text).toBe('');
+    expect(guest.headers['set-cookie']).toBeUndefined();
+    await request(app).get('/api/watchlist').expect(401);
+    const invalid = await request(app).post('/api/auth/refresh')
+      .set('Cookie', 'anitrack_refresh=invalid-session').expect(401);
+    expect(invalid.headers['set-cookie'][0]).toContain('Expires=Thu, 01 Jan 1970');
+  });
+
   it('keeps the refresh cookie on a temporary transaction failure and can recover without logging in again', async () => {
     const agent = request.agent(app);
     await agent.post('/api/auth/register').send(account).expect(201);
@@ -229,6 +239,7 @@ describe('Authentication API', () => {
 
   it('denies catalog writes to a member and protects watchlist routes', async () => {
     const login = await request(app).post('/api/auth/register').send(account);
+    database.users[0].emailVerifiedAt = new Date();
     expect(
       (
         await request(app)

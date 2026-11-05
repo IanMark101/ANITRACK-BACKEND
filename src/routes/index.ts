@@ -13,13 +13,16 @@ import { discoveryRouter } from './discovery.js';
 import { assistantRouter } from './assistant.js';
 import { accountRouter } from './account.js';
 import { createAssistantBudget } from '../services/assistant-budget.js';
-import type { AccountMailer } from '../services/mail.service.js';
+import { createAccountMailer, type AccountMailer } from '../services/mail.service.js';
+import { createAccountService } from '../services/account.service.js';
 import { collectionsRouter } from './collections.js';
 
 export function apiRouter(db: PrismaClient, config: Config, authLimit: RequestHandler, mailer?: AccountMailer) {
   const router = Router();
   const protect = requireAuth(db, config);
-  const auth = createAuthController(createAuthService(db, config), db, config);
+  const accountMailer = mailer ?? createAccountMailer(config);
+  const account = createAccountService(db, accountMailer);
+  const auth = createAuthController(createAuthService(db, config), db, config, account, accountMailer.available);
   const provider = createAnimeProvider();
   const watchlist = createWatchlistController(createWatchlistService(db, provider, config.COLLECTION_LIMIT));
   const catalog = createCatalogController(createCatalogService(db));
@@ -27,8 +30,8 @@ export function apiRouter(db: PrismaClient, config: Config, authLimit: RequestHa
   router.post('/auth/login', authLimit, auth.login);
   router.post('/auth/logout', auth.logout);
   router.post('/auth/refresh', authLimit, auth.refresh);
-  router.get('/auth/me', protect, auth.me);
-  router.use(accountRouter(db, config, authLimit, mailer));
+  router.get('/auth/me', requireAuth(db, config, { allowUnverified: true }), auth.me);
+  router.use(accountRouter(db, config, authLimit, accountMailer));
   router.use('/collections', collectionsRouter(db, config));
   router.get('/anime/meta', protect, catalog.meta);
   router.use('/discovery', protect, discoveryRouter(db, provider));

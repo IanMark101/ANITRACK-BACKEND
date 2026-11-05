@@ -11,6 +11,7 @@
     "test": "vitest run --exclude '**/*.integration.test.ts' --testTimeout=20000",
     "test:integration": "vitest run test/auth.integration.test.ts test/discovery.integration.test.ts test/account.integration.test.ts test/collections.integration.test.ts --testTimeout=120000",
     "test:isolated": "node scripts/test-isolated.mjs",
+    "test:browser": "node scripts/test-browser.mjs",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
@@ -57,6 +58,9 @@
     "node": ">=22.12"
   },
   "overrides": {
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.1"
+    },
     "@prisma/config": {
       "deepmerge-ts": "^8.0.0"
     }

@@ -3,6 +3,7 @@ import { parseEnv } from 'node:util';
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { PrismaClient } from '@prisma/client';
+import { dropOwnedTestSchema } from './test-schema.mjs';
 
 // Integration tests use a fresh schema, never the application's tables.
 const values = { ...parseEnv(readFileSync('.env', 'utf8')), ...process.env };
@@ -24,6 +25,10 @@ const env = {
   TEST_DATABASE_URL: withSchema(values.DATABASE_URL)
 };
 const db = new PrismaClient({ datasourceUrl: values.DIRECT_URL, errorFormat: 'minimal' });
+const knownTests = ['test/auth.integration.test.ts', 'test/discovery.integration.test.ts', 'test/account.integration.test.ts', 'test/collections.integration.test.ts'];
+const requestedTests = process.argv.slice(2);
+if (requestedTests.some(file => !knownTests.includes(file)))
+  throw new Error('Choose an existing isolated integration test file.');
 const redact = (value) =>
   String(value || '')
     .replace(/postgres(?:ql)?:\/\/[^\s"']+/gi, '[redacted database URL]')
@@ -54,10 +59,7 @@ try {
   run([
     'node_modules/vitest/vitest.mjs',
     'run',
-    'test/auth.integration.test.ts',
-    'test/discovery.integration.test.ts',
-    'test/account.integration.test.ts',
-    'test/collections.integration.test.ts',
+    ...(requestedTests.length ? requestedTests : knownTests),
     '--maxWorkers=1',
     '--testTimeout=120000'
   ]);
@@ -67,7 +69,7 @@ try {
 } finally {
   if (created) {
     // CREATE SCHEMA has no IF NOT EXISTS: this target was created by this invocation.
-    await db.$executeRawUnsafe(`DROP SCHEMA "${schema}" CASCADE`);
+    await dropOwnedTestSchema(db, schema, created);
     console.log("Removed this invocation's isolated test schema.");
   }
   await db.$disconnect();

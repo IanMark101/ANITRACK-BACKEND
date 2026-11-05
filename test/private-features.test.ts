@@ -23,6 +23,7 @@ describe('All application features require authentication', () => {
     const app = createApp(database.db, testConfig);
     const signup = await request(app).post('/api/auth/register').send({ name: 'Private feature tester', email: 'private-feature@example.test', password: 'private-feature-password' }).expect(201);
     const token = signup.body.accessToken;
+    database.users[0].emailVerifiedAt = new Date();
     const discovery = await request(app).get('/api/discovery?q=Haikyu').auth(token, { type: 'bearer' }).expect(200);
     expect(discovery.body.items).toEqual([]);
     expect(fetcher).toHaveBeenCalledOnce();

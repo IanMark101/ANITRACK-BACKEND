@@ -5,9 +5,9 @@ import type { Config } from '../config.js';
 import { AppError } from '../errors.js';
 import { isTrustedOrigin } from '../origin.js';
 
-export type AuthRequest = Request & { user: { id: string; role: Role }; sessionId: string };
+export type AuthRequest = Request & { user: { id: string; role: Role; emailVerifiedAt: Date | null }; sessionId: string };
 
-export function requireAuth(db: PrismaClient, config: Config): RequestHandler {
+export function requireAuth(db: PrismaClient, config: Config, options: { allowUnverified?: boolean } = {}): RequestHandler {
   return async (req, _res, next) => {
     try {
       const bearer = req.headers.authorization;
@@ -27,7 +27,7 @@ export function requireAuth(db: PrismaClient, config: Config): RequestHandler {
         throw new AppError(401, 'INVALID_TOKEN', 'Invalid session.');
       const session = await db.refreshSession.findUnique({
         where: { id: payload.sid },
-        include: { user: { select: { id: true, role: true } } }
+        include: { user: { select: { id: true, role: true, emailVerifiedAt: true } } }
       });
       if (
         !session ||
@@ -36,6 +36,8 @@ export function requireAuth(db: PrismaClient, config: Config): RequestHandler {
         session.expiresAt <= new Date()
       )
         throw new AppError(401, 'SESSION_EXPIRED', 'Please sign in again.');
+      if (!options.allowUnverified && !session.user.emailVerifiedAt)
+        throw new AppError(403, 'EMAIL_VERIFICATION_REQUIRED', 'Verify your email before opening your AniTrack workspace.');
       (req as AuthRequest).user = session.user;
       (req as AuthRequest).sessionId = session.id;
       next();

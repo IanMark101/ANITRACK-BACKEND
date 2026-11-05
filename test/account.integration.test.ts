@@ -25,10 +25,17 @@ describe.skipIf(!connection)('Account lifecycle in isolated PostgreSQL', () => {
     const initial = { name: 'Temporary review account', email, password: 'temporary-test-password-9182' };
     const signup = await request(app).post('/api/auth/register').send(initial).expect(201);
     const bearer = signup.body.accessToken;
-    await request(app).post('/api/auth/email/request').auth(bearer, { type: 'bearer' }).expect(200);
+    expect(signup.body.verificationEmailSent).toBe(true);
+    for (const path of ['/api/watchlist', '/api/collections', '/api/anime/meta', '/api/discovery', '/api/watchlist/calendar']) {
+      const denied = await request(app).get(path).auth(bearer, { type: 'bearer' }).expect(403);
+      expect(denied.body.error.code).toBe('EMAIL_VERIFICATION_REQUIRED');
+    }
+    await request(app).get('/api/auth/me').auth(bearer, { type: 'bearer' }).expect(200);
+    await request(app).post('/api/auth/email/request').auth(bearer, { type: 'bearer' }).expect(429);
     const verifyToken = sent.find((mail) => mail.purpose === 'EMAIL_VERIFICATION')!.token;
     expect((await db.accountToken.findFirst({ where: { userId: signup.body.user.id } }))?.tokenHash).not.toBe(verifyToken);
     await request(app).post('/api/auth/email/verify').send({ token: verifyToken }).expect(204);
+    await request(app).get('/api/watchlist').auth(bearer, { type: 'bearer' }).expect(200);
     await request(app).post('/api/auth/email/verify').send({ token: verifyToken }).expect(400);
     await request(app).patch('/api/account').auth(bearer, { type: 'bearer' }).send({ name: 'Updated review account' }).expect(200);
     await request(app).post('/api/auth/password/forgot').send({ email }).expect(200);
@@ -62,5 +69,24 @@ describe.skipIf(!connection)('Account lifecycle in isolated PostgreSQL', () => {
     const record = await db.assistantUsageDay.findUniqueOrThrow({ where: { day: new Date('2099-01-01') } });
     expect(record.attempts).toBe(3);
     expect(record.reservedMicros).toBeGreaterThan(0);
+  }, 120000);
+  it('serializes verification resends, rejects expired links and preserves the usable link', async () => {
+    const password = 'temporary-verification-password-6192';
+    const signup = await request(app).post('/api/auth/register').send({ name: 'Verification retry tester', email, password }).expect(201);
+    const token = signup.body.accessToken;
+    const first = sent.at(-1)!.token;
+    await db.accountToken.updateMany({ where: { userId: signup.body.user.id }, data: { createdAt: new Date(Date.now() - 61_000) } });
+    const deliveries = sent.length;
+    const attempts = await Promise.all(Array.from({ length: 3 }, () => request(app).post('/api/auth/email/request').auth(token, { type: 'bearer' })));
+    expect(attempts.map(result => result.status).sort()).toEqual([200, 429, 429]);
+    expect(sent.length - deliveries).toBe(1);
+    const latest = sent.at(-1)!.token;
+    await db.accountToken.updateMany({ where: { userId: signup.body.user.id, createdAt: { lt: new Date(Date.now() - 60_000) } }, data: { expiresAt: new Date(Date.now() - 1) } });
+    await request(app).post('/api/auth/email/verify').send({ token: first }).expect(400);
+    await request(app).get('/api/watchlist').auth(token, { type: 'bearer' }).expect(403);
+    await request(app).post('/api/auth/email/verify').send({ token: latest }).expect(204);
+    await request(app).get('/api/watchlist').auth(token, { type: 'bearer' }).expect(200);
+    expect(await db.accountToken.count({ where: { userId: signup.body.user.id } })).toBe(0);
+    await request(app).delete('/api/account').auth(token, { type: 'bearer' }).send({ password, confirmation: 'DELETE' }).expect(204);
   }, 120000);
 });

@@ -12,6 +12,7 @@ export function accountRouter(db: PrismaClient, config: Config, limit: RequestHa
   const router = Router();
   const account = createAccountService(db, mailer);
   const protect = requireAuth(db, config);
+  const pending = requireAuth(db, config, { allowUnverified: true });
   const userId = (req: Parameters<RequestHandler>[0]) => (req as AuthRequest).user.id;
   const clear = (res: Parameters<RequestHandler>[1]) => res.clearCookie(cookieName, {
     httpOnly: true, secure: config.NODE_ENV === 'production', sameSite: 'strict', path: '/api/auth'
@@ -30,20 +31,20 @@ export function accountRouter(db: PrismaClient, config: Config, limit: RequestHa
     await account.consume(accountTokenSchema.parse(req.body).token, 'EMAIL_VERIFICATION');
     res.status(204).end();
   });
-  router.post('/auth/email/request', limit, protect, async (req, res) => {
-    await account.requestVerification(userId(req));
-    res.json({ message: 'A verification link has been sent if your email still needs verification.' });
+  router.post('/auth/email/request', limit, pending, async (req, res) => {
+    const verificationEmailSent = await account.requestVerification(userId(req));
+    res.json({ verificationEmailSent, message: verificationEmailSent ? 'A new verification link has been sent.' : 'Your email is already verified.' });
   });
   router.patch('/account', protect, async (req, res) => {
     res.json({ user: await account.updateProfile(userId(req), updateProfileSchema.parse(req.body).name) });
   });
-  router.put('/account/password', limit, protect, async (req, res) => {
+  router.put('/account/password', limit, pending, async (req, res) => {
     const input = changePasswordSchema.parse(req.body);
     await account.changePassword(userId(req), input.currentPassword, input.password);
     clear(res);
     res.status(204).end();
   });
-  router.delete('/account', limit, protect, async (req, res) => {
+  router.delete('/account', limit, pending, async (req, res) => {
     const input = deleteAccountSchema.parse(req.body);
     await account.remove(userId(req), input.password);
     clear(res);

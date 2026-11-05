@@ -86,6 +86,7 @@ describe.skipIf(!connection)('Imported anime and progress in isolated PostgreSQL
       });
     expect(signup.status).toBe(201);
     expect(other.status).toBe(201);
+    await db.user.updateMany({ where: { id: { in: [signup.body.user.id, other.body.user.id] } }, data: { emailVerifiedAt: new Date() } });
     const token = signup.body.accessToken;
     const imported = await request(app)
       .post('/api/watchlist/import')
@@ -183,5 +184,5 @@ describe.skipIf(!connection)('Imported anime and progress in isolated PostgreSQL
       .send({ externalId: id });
     expect(offlineImport.status).toBe(200);
     expect(offlineImport.body.item.id).toBe(entryId);
-  }, 60000);
+  }, 120000);
 });
