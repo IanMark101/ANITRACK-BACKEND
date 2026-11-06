@@ -67,3 +67,5 @@ Android completion and physical-device acceptance are required by the current pr
 # Local phone email links
 
 For development on a phone, optionally set `ACCOUNT_LINK_ORIGIN=http://YOUR_LAPTOP_IP:5173` while keeping `CLIENT_ORIGIN=http://localhost:5173`. Verification/reset emails use ACCOUNT_LINK_ORIGIN when configured. Only that exact additional origin is trusted; arbitrary LAN origins are not accepted. The frontend must listen on the Wi-Fi interface (ANITRACK_DEV_HOST=0.0.0.0), and both devices must share the network. Production account links require HTTPS. Restart the API after environment changes. SMTP secrets remain backend-only.
+
+For Gmail, use an app password without its display spaces. On the tested network port 587 timed out; SMTP_PORT=465 with SMTP_SECURE=1 successfully authenticated on November 5. Authentication alone does not establish inbox receipt; complete a real verification/reset delivery check. Other SMTP providers retain their documented port/TLS settings.
