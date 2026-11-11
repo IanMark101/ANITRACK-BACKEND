@@ -2,7 +2,9 @@
 
 Workspace APIs require a valid session and verified email. Registration creates a restricted session and attempts verification delivery; an unverified account cannot read or change watchlists, Collections, discovery, catalog, AI or admin data. Configure account email before inviting users. Existing unverified accounts must verify too. See [release and email operations](docs/OPERATIONS.md).
 
-Account management, SMTP setup, shared AI budgets, limits, monitoring, backups and CI are documented in [the web operations guide](docs/OPERATIONS.md). After pulling these changes, stop the API, regenerate Prisma's client, and deploy the committed additive migration before restarting it.
+Account management, email delivery, shared AI budgets, limits, monitoring, backups and CI are documented in [the web operations guide](docs/OPERATIONS.md). After pulling these changes, stop the API, regenerate Prisma's client, and deploy the committed additive migration before restarting it.
+
+For account emails over HTTPS, set backend-only `BREVO_API_KEY` and `MAIL_FROM` to a verified Brevo sender. AniTrack uses Brevo for verification and password-reset messages whenever the key is configured. With the key empty, the SMTP settings select Nodemailer delivery. Set `CLIENT_ORIGIN` and optional `ACCOUNT_LINK_ORIGIN` to the public web origin for deployed account links. Brevo setup steps are in the operations guide.
 
 All catalog, discovery, anime-detail and Anime Assistant endpoints require authentication. The public landing page describes these capabilities and links to login/registration; guests cannot use them or invoke the feature APIs.
 

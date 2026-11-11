@@ -29,11 +29,31 @@ Registration creates a restricted session and attempts to send a verification li
 
 The additive `20261030010000_private_collections` migration introduces private collections and ordered watchlist memberships. Existing watchlists remain intact. Authenticated `/api/collections` endpoints support list/search/pagination, create, rename/description, detail, delete, add/remove saved titles, and exact-set reordering. Every operation checks the current owner. Limits are 20 collections per user and 100 saved titles per collection. The same saved title can belong to several groups. Removing a group leaves the watchlist unchanged; removing a saved entry or deleting its account cascades through memberships.
 
-## SMTP configuration
+## Account email delivery
 
-Choose an SMTP provider and verify the sender address/domain. Put credentials only in the backend `.env` or hosting secret store. Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` and `MAIL_FROM` using `.env.example`. Port 587 requires STARTTLS; use `SMTP_SECURE=1` for implicit TLS on port 465. Certificate verification stays enabled. `MAIL_FROM` is an email address, without a display name. Links always use `CLIENT_ORIGIN`, never the incoming Host header.
+### Brevo HTTPS delivery on Railway
 
-When SMTP is absent, requesting reset/verification returns an actionable unavailable message. Newly registered and previously unverified users remain blocked from the workspace until delivery is configured and verification completes. Already verified users continue to work. Reset requests return the same generic response for existing and nonexistent addresses, and delivery happens asynchronously. Delivery failures log no address or token. Reset links expire after 30 minutes; verification links after 24 hours. Only hashes are stored, and links are consumed atomically once. Email links carry the token in a fragment, which the frontend removes from browser history after reading it. GET navigation does not consume a link. Configure CLIENT_ORIGIN to the actual frontend address before sending links.
+Railway Free, Trial, and Hobby plans require email delivery through an HTTPS API. See the [Railway outbound email policy](https://docs.railway.com/networking/outbound-networking#email-delivery).
+
+Set `BREVO_API_KEY` and `MAIL_FROM` in the backend environment. `MAIL_FROM` must match a sender verified in Brevo. A configured Brevo key selects the HTTPS API for both verification and password reset, including when SMTP variables are present. Provider failures produce the existing recoverable email error. Each request has a 15-second deadline and rejects redirects.
+
+For the current deployment, set `CLIENT_ORIGIN` and `ACCOUNT_LINK_ORIGIN` to `https://anitrack-frontend-mu.vercel.app`. Complete these steps in Brevo and Railway:
+
+1. Create a Brevo account and complete account verification and any sending activation requested by Brevo.
+2. In Brevo, open Settings → Senders, Domains, IPs → Senders. Add AniTrack as the sender name, enter your sender email, and complete its verification code.
+3. Open Settings → SMTP & API → API Keys & MCP. Create an AniTrack key with permission to send transactional emails.
+4. Put the key directly into Railway as `BREVO_API_KEY`, set `MAIL_FROM` to the verified sender, and deploy the variable changes.
+5. On the website, request a verification email and confirm its link. Then request a password reset, open its link, and sign in with the new password. Confirm receipt in the actual inbox and inspect Brevo's transactional logs if delivery fails.
+
+Brevo's free plan currently includes 300 emails per day. For Gmail and other free sender domains, Brevo uses a provider-managed replacement sender address. Actual delivery depends on sender verification, account activation, quota, and the recipient mailbox. Track real inbox receipt separately from automated API tests.
+
+Provider references are the [transactional API](https://developers.brevo.com/reference/send-transac-email), [sender setup](https://help.brevo.com/hc/en-us/articles/208836149-Create-a-new-sender-From-name-and-From-email), [API keys](https://help.brevo.com/hc/en-us/articles/40159485019794-Create-and-manage-your-API-keys), [free plan](https://help.brevo.com/hc/en-us/articles/208589409-About-Brevo-s-pricing-plans), and [sender replacement policy](https://help.brevo.com/hc/en-us/articles/14925263522578-Comply-with-Gmail-Yahoo-and-Microsoft-s-requirements-for-email-senders).
+
+### SMTP delivery
+
+Choose an SMTP provider and verify the sender address/domain. Put credentials only in the backend `.env` or hosting secret store. Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` and `MAIL_FROM` using `.env.example`. Port 587 requires STARTTLS. Use `SMTP_SECURE=1` for implicit TLS on port 465. Certificate verification stays enabled. `MAIL_FROM` is an email address, without a display name. Account links use `ACCOUNT_LINK_ORIGIN` when configured and otherwise use `CLIENT_ORIGIN`.
+
+When email delivery is unconfigured, requesting reset/verification returns an actionable unavailable message. Newly registered and previously unverified users remain blocked from the workspace until delivery is configured and verification completes. Already verified users continue to work. Reset requests return the same generic response for existing and nonexistent addresses, and delivery happens asynchronously. Delivery failures log no address or token. Reset links expire after 30 minutes and verification links after 24 hours. Only hashes are stored, and links are consumed atomically once. Email links carry the token in a fragment, which the frontend removes from browser history after reading it. GET navigation does not consume a link. Configure CLIENT_ORIGIN to the actual frontend address before sending links.
 
 ## Resource limits and AI usage
 

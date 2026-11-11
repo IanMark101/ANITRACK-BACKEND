@@ -34,6 +34,7 @@ const schema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   TRUST_PROXY: z.enum(['0', '1']).default('0'),
+  BREVO_API_KEY: z.string().trim().min(1).optional(),
   SMTP_HOST: z.string().min(1).optional(),
   SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
   SMTP_SECURE: z.enum(['0', '1']).default('0'),
@@ -60,9 +61,13 @@ export function loadConfig(): Config {
   }
   if (result.data.NODE_ENV === 'production' && result.data.ACCOUNT_LINK_ORIGIN && !result.data.ACCOUNT_LINK_ORIGIN.startsWith('https://'))
     throw new Error('Production ACCOUNT_LINK_ORIGIN must use HTTPS.');
-  if ((result.data.SMTP_USER && !result.data.SMTP_PASSWORD) || (!result.data.SMTP_USER && result.data.SMTP_PASSWORD))
-    throw new Error('Set both SMTP_USER and SMTP_PASSWORD.');
-  if (result.data.SMTP_HOST && !result.data.MAIL_FROM)
-    throw new Error('Set MAIL_FROM when SMTP_HOST is configured.');
+  if (result.data.BREVO_API_KEY) {
+    if (!result.data.MAIL_FROM) throw new Error('Set MAIL_FROM to your verified Brevo sender.');
+  } else {
+    if ((result.data.SMTP_USER && !result.data.SMTP_PASSWORD) || (!result.data.SMTP_USER && result.data.SMTP_PASSWORD))
+      throw new Error('Set both SMTP_USER and SMTP_PASSWORD.');
+    if (result.data.SMTP_HOST && !result.data.MAIL_FROM)
+      throw new Error('Set MAIL_FROM when SMTP_HOST is configured.');
+  }
   return result.data;
 }
