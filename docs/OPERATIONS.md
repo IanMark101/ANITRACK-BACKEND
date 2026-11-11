@@ -1,5 +1,7 @@
 # Web release and operations
 
+The [AniTrack academic technical report](https://github.com/IanMark101/ANITRACK-FRONTEND/blob/main/docs/assessment/AniTrack-Technical-Documentation.pdf) covers the web and Android architecture, data model, features, testing evidence, and course submission requirements. The [eight-step Capacitor audit](https://github.com/IanMark101/ANITRACK-FRONTEND/blob/main/docs/assessment/INSTRUCTOR-COMPLIANCE.md) records the toolchain, build, and device checks, along with the pending setup screenshot and Gmail delivery checks.
+
 ## Install and migrate
 
 Use Node 24 and the committed lockfile. Stop the backend on Windows before generating Prisma's client, because its loaded DLL cannot be replaced.
