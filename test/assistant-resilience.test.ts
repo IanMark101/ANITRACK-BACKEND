@@ -52,7 +52,7 @@ describe('Assistant model and quota audit', () => {
       expect(fetcher).toHaveBeenCalledTimes(2);
       const bodies = fetcher.mock.calls.map(([, init]) => JSON.parse(String(init?.body)));
       expect(bodies.map((body) => body.model)).toEqual(
-        Array(2).fill(model || 'gemini-3.5-flash-lite')
+        Array(2).fill(model || 'gemini-3.1-flash-lite')
       );
       expect(bodies.every((body) => body.generation_config.max_output_tokens === 3000)).toBe(true);
     }
@@ -144,7 +144,7 @@ describe('Assistant model and quota audit', () => {
         fetcher
       ).plan(input, new AbortController().signal)
     ).rejects.toMatchObject({ code: 'ASSISTANT_UNAVAILABLE' });
-    expect(timeout).toHaveBeenCalledWith(20000);
+    expect(timeout).toHaveBeenCalledWith(8000);
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { errorHandler } from '../src/errors.js';
+import { AppError, errorHandler } from '../src/errors.js';
 import { normalizeAnime } from '../src/services/anime-provider.js';
 import {
   assistantInput,
@@ -192,6 +192,27 @@ describe('Anime assistant matching', () => {
     expect(result.items[0].evidence).toBe('');
     expect(result.items[0].reason).not.toContain('claim');
   });
+  it('keeps only confirmed suggested titles when detailed ranking is temporarily unavailable', async () => {
+    const { service, interpreter, provider } = setup({ titles: ['One Piece'], genres: [] });
+    interpreter.rank.mockRejectedValue(new AppError(503, 'ASSISTANT_UNAVAILABLE', 'Unavailable'));
+    const result = await service.run(assistantInput.parse({
+      mode: 'recommend', message: 'Pirates with unique powers.'
+    }));
+    expect(result.items.map(item => item.anime.title)).toEqual(['One Piece']);
+    expect(result.items[0].evidence).toBe('');
+    expect(result.notice).toContain('verified catalog titles');
+    expect(provider.search).toHaveBeenCalledTimes(1);
+    expect(provider.search).toHaveBeenCalledWith({ q: 'One Piece' });
+  });
+  it('falls back to genre browsing when suggested titles have no usable catalog matches', async () => {
+    const { service, provider } = setup({ titles: ['Unavailable title'] });
+    provider.search.mockResolvedValueOnce({ items: [], page: 1, hasNext: false, total: 0, source: 'Kitsu' });
+    const result = await service.run(assistantInput.parse({ mode: 'recommend', message: 'Adventure' }));
+    expect(result.items.map(item => item.anime.externalId)).toEqual(['2']);
+    expect(provider.search.mock.calls.map(call => call[0])).toEqual([
+      { q: 'Unavailable title' }, { genre: 'Adventure', view: 'top' }
+    ]);
+  });
   it('reports provider downtime and does not turn it into a misleading no-match response', async () => {
     const { service, provider } = setup();
     provider.search.mockRejectedValue(new Error('Provider offline'));
@@ -219,6 +240,26 @@ describe('Anime assistant matching', () => {
 });
 
 describe('Gemini integration', () => {
+  it('accepts an overlong synopsis quotation without retrying or losing a verified result', async () => {
+    const synopsis = 'A rubber-bodied pirate searches for treasure. '.repeat(6);
+    const evidence = synopsis.slice(0, 199);
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(modelResponse({ ...plan, titles: ['One Piece'], genres: [] }))
+      .mockResolvedValueOnce(modelResponse({
+        matches: [{ id: '1', reason: 'A pirate adventure with unusual powers.', evidence }],
+        question: ''
+      }));
+    const interpreter = createGeminiInterpreter({ GEMINI_API_KEY: 'test-key' }, fetcher);
+    const provider = { search: vi.fn().mockResolvedValue({ items: [{ ...onePiece, synopsis }] }) };
+    const result = await createAnimeAssistant(provider, interpreter).run(
+      assistantInput.parse({ mode: 'recommend', message: 'Pirates with unique powers.' })
+    );
+    expect(result.items.map(item => item.anime.title)).toEqual(['One Piece']);
+    expect(result.items[0].evidence.length).toBeLessThanOrEqual(180);
+    expect(synopsis).toContain(result.items[0].evidence);
+    expect(result.items[0].reason).toContain('pirate adventure');
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
   it('keeps the API key in a server header, uses structured output, and disables interaction storage', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(modelResponse(plan));
     const interpreter = createGeminiInterpreter({ GEMINI_API_KEY: 'test-private-key' }, fetcher);

@@ -12,8 +12,8 @@ import {
 import { normalizeAnime } from '../src/services/anime-provider.js';
 import { testConfig } from './helpers.js';
 
-const primary = 'gemini-3.5-flash-lite';
-const backup = 'gemini-3.1-flash-lite';
+const primary = 'gemini-3.1-flash-lite';
+const backup = 'gemini-3.5-flash-lite';
 const last = 'gemini-3.6-flash';
 const input = assistantInput.parse({ mode: 'recommend', message: 'Adventure' });
 const plan: AssistantPlan = {
@@ -41,6 +41,15 @@ beforeEach(() => vi.spyOn(console, 'warn').mockImplementation(() => {}));
 afterEach(() => vi.restoreAllMocks());
 
 describe('Gemini model fallback', () => {
+  it('keeps the working model as a backup when the previous primary is explicitly configured', async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response('{}', { status: 503 }))
+      .mockResolvedValueOnce(modelResponse(plan));
+    await expect(createGeminiInterpreter({
+      GEMINI_API_KEY: 'test-key', GEMINI_MODEL: backup
+    }, fetcher).plan(input, new AbortController().signal)).resolves.toEqual(plan);
+    expect(requested(fetcher)).toEqual([backup, primary]);
+  });
   it.each([404, 408, 429, 500, 502, 503, 504])(
     'switches models after HTTP %s and skips the failed primary during ranking',
     async (status) => {
