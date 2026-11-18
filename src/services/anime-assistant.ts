@@ -1,9 +1,12 @@
 import { z } from 'zod';
+import { createHash } from 'node:crypto';
 import type { Config } from '../config.js';
 import { AppError } from '../errors.js';
 import { genres } from '../validation.js';
 import type { AnimeProvider, DiscoveryQuery, ProviderAnime } from './anime-provider.js';
 import type { GenerationBudget } from './assistant-budget.js';
+import { createGenerationCache } from './assistant-cache.js';
+import { modelCooldown } from './assistant-retry.js';
 
 const boundedArray = <T extends z.ZodType>(item: T, maximum: number) =>
   z.unknown().superRefine((value, context) => {
@@ -117,14 +120,6 @@ function abortable<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
   });
 }
 
-function retryAfterMs(value: string | null): number {
-  if (!value) return 0;
-  const milliseconds = /^\d+(\.\d+)?$/.test(value)
-    ? Number(value) * 1000
-    : Date.parse(value) - Date.now();
-  return Number.isFinite(milliseconds) ? Math.max(1000, Math.min(milliseconds, 86400000)) : 0;
-}
-
 const modelsWithMinimalThinking = new Set([
   'gemini-3.5-flash-lite',
   'gemini-3.1-flash-lite',
@@ -148,7 +143,14 @@ export function createGeminiInterpreter(
     ])
   ];
   const cooldowns = new Map<string, { until: number; quota: boolean }>();
+  const cache = createGenerationCache();
   async function generate<T>(
+    schema: z.ZodType<T>, instruction: string, data: unknown, signal: AbortSignal
+  ): Promise<T> {
+    const key = createHash('sha256').update(JSON.stringify([instruction, data, z.toJSONSchema(schema)])).digest('hex');
+    return cache.run(key, signal, sharedSignal => generateFresh(schema, instruction, data, sharedSignal));
+  }
+  async function generateFresh<T>(
     schema: z.ZodType<T>,
     instruction: string,
     data: unknown,
@@ -165,6 +167,7 @@ export function createGeminiInterpreter(
     // Try each available model once; the shared search deadline also bounds all attempts.
     for (const model of ready) {
       if (signal.aborted) throw unavailable();
+      if ((cooldowns.get(model)?.until ?? 0) > Date.now()) continue;
       const inputBytes = Buffer.byteLength(instruction + JSON.stringify(data) + JSON.stringify(z.toJSONSchema(schema)));
       const recordUsage = budget
         ? await abortable(budget.reserve(inputBytes, 6000), signal)
@@ -201,9 +204,11 @@ export function createGeminiInterpreter(
         if ([404, 408, 429, 500, 502, 503, 504].includes(response.status)) {
           const quota = response.status === 429;
           quotaLimited ||= quota;
-          const delay = response.status === 404 ? 300000 : quota ? 60000 : 30000;
+          // Google also puts RetryInfo and daily quota scope in the JSON error.
+          // Never log or return that body: it can contain project diagnostics.
+          const diagnostic = await abortable(response.json(), attemptSignal).catch(() => undefined);
           cooldowns.set(model, {
-            until: Date.now() + Math.max(delay, retryAfterMs(response.headers.get('Retry-After'))),
+            until: Date.now() + modelCooldown(response.status, response.headers.get('Retry-After'), diagnostic),
             quota
           });
           console.warn('Anime assistant model unavailable:', model, response.status);
@@ -378,14 +383,16 @@ export function createAnimeAssistant(
       // One exact catalog match needs no second AI call to choose between titles.
       let ranked: Ranking;
       let rankingUnavailable = false;
-      if (input.mode === 'identify' && available.length === 1) {
+      if (available.length === 1 && (input.mode === 'identify' || plan.titles.some(title =>
+        [available[0].title, ...available[0].alternativeTitles].some(name => normalizeTitle(name) === normalizeTitle(title))
+      ))) {
         ranked = { matches: [{ id: available[0].externalId, reason: '', evidence: '' }], question: '' };
       } else {
         try {
           ranked = await abortable(interpreter.rank(input, plan, available, signal), signal);
         } catch (error) {
           requestSignal.throwIfAborted();
-          if (!signal.aborted && !(error instanceof AppError && ['ASSISTANT_UNAVAILABLE', 'ASSISTANT_BUSY'].includes(error.code)))
+          if (!signal.aborted && !(error instanceof AppError && ['ASSISTANT_UNAVAILABLE', 'ASSISTANT_BUSY', 'ASSISTANT_DAILY_LIMIT'].includes(error.code)))
             throw error;
           // Keep only exact catalog titles suggested by the successful interpretation.
           const suggested = new Set(plan.titles.map(normalizeTitle));

@@ -135,6 +135,14 @@ describe('Anime assistant matching', () => {
     expect(result.items.map((item) => item.anime.externalId)).toEqual(['1']);
     expect(interpreter.rank).not.toHaveBeenCalled();
   });
+  it('also skips ranking for one exact recommendation, including alternative titles', async () => {
+    const { service, interpreter, provider } = setup({ titles: ['Wan Piisu'], genres: [] });
+    provider.search.mockResolvedValue({ items: [{ ...onePiece, alternativeTitles: ['Wan Piisu'] }],
+      page: 1, hasNext: false, total: 1, source: 'Kitsu' });
+    const result = await service.run(assistantInput.parse({ mode: 'recommend', message: 'Pirates with powers' }));
+    expect(result.items.map(item => item.anime.title)).toEqual(['One Piece']);
+    expect(interpreter.rank).not.toHaveBeenCalled();
+  });
   it('discards invented and duplicate ranked result IDs', async () => {
     const { service, interpreter } = setup({ genres: [] });
     interpreter.rank.mockResolvedValue({
@@ -192,16 +200,17 @@ describe('Anime assistant matching', () => {
     expect(result.items[0].evidence).toBe('');
     expect(result.items[0].reason).not.toContain('claim');
   });
-  it('keeps only confirmed suggested titles when detailed ranking is temporarily unavailable', async () => {
-    const { service, interpreter, provider } = setup({ titles: ['One Piece'], genres: [] });
-    interpreter.rank.mockRejectedValue(new AppError(503, 'ASSISTANT_UNAVAILABLE', 'Unavailable'));
+  it.each(['ASSISTANT_UNAVAILABLE', 'ASSISTANT_BUSY', 'ASSISTANT_DAILY_LIMIT'])(
+    'keeps confirmed suggested titles when ranking fails with %s', async code => {
+    const { service, interpreter, provider } = setup({ titles: ['One Piece', 'An Adventure'], genres: [] });
+    interpreter.rank.mockRejectedValue(new AppError(code === 'ASSISTANT_DAILY_LIMIT' ? 429 : 503, code, 'Unavailable'));
     const result = await service.run(assistantInput.parse({
       mode: 'recommend', message: 'Pirates with unique powers.'
     }));
-    expect(result.items.map(item => item.anime.title)).toEqual(['One Piece']);
+    expect(result.items.map(item => item.anime.title)).toEqual(['One Piece', 'An Adventure']);
     expect(result.items[0].evidence).toBe('');
     expect(result.notice).toContain('verified catalog titles');
-    expect(provider.search).toHaveBeenCalledTimes(1);
+    expect(provider.search).toHaveBeenCalledTimes(2);
     expect(provider.search).toHaveBeenCalledWith({ q: 'One Piece' });
   });
   it('falls back to genre browsing when suggested titles have no usable catalog matches', async () => {
@@ -244,13 +253,13 @@ describe('Gemini integration', () => {
     const synopsis = 'A rubber-bodied pirate searches for treasure. '.repeat(6);
     const evidence = synopsis.slice(0, 199);
     const fetcher = vi.fn<typeof fetch>()
-      .mockResolvedValueOnce(modelResponse({ ...plan, titles: ['One Piece'], genres: [] }))
+      .mockResolvedValueOnce(modelResponse({ ...plan, titles: ['One Piece', 'An Adventure'], genres: [] }))
       .mockResolvedValueOnce(modelResponse({
         matches: [{ id: '1', reason: 'A pirate adventure with unusual powers.', evidence }],
         question: ''
       }));
     const interpreter = createGeminiInterpreter({ GEMINI_API_KEY: 'test-key' }, fetcher);
-    const provider = { search: vi.fn().mockResolvedValue({ items: [{ ...onePiece, synopsis }] }) };
+    const provider = { search: vi.fn().mockResolvedValue({ items: [{ ...onePiece, synopsis }, shortStory] }) };
     const result = await createAnimeAssistant(provider, interpreter).run(
       assistantInput.parse({ mode: 'recommend', message: 'Pirates with unique powers.' })
     );

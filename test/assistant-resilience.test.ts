@@ -133,10 +133,12 @@ describe('Assistant model and quota audit', () => {
       init?.signal?.throwIfAborted();
       throw new Error('An expired request must not reach generation.');
     });
+    const originalTimeout = AbortSignal.timeout.bind(AbortSignal);
     const timeout = vi
       .spyOn(AbortSignal, 'timeout')
-      .mockImplementation(() =>
-        AbortSignal.abort(new DOMException('Audit deadline', 'TimeoutError'))
+      .mockImplementation(milliseconds => milliseconds === 8000
+        ? AbortSignal.abort(new DOMException('Audit deadline', 'TimeoutError'))
+        : originalTimeout(milliseconds)
       );
     await expect(
       createGeminiInterpreter(

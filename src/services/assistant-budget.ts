@@ -23,13 +23,29 @@ export function createAssistantBudget(db: PrismaClient, config: Config, now = ()
       data: { attempts: { increment: 1 }, reservedMicros: { increment: micros } } });
       if (reserved.count !== 1) throw new AppError(429, 'ASSISTANT_DAILY_LIMIT',
         'The anime assistant has reached its daily usage limit. Please try again tomorrow.');
+      let recorded = false;
       return async (usage) => {
+        if (recorded) return;
+        recorded = true;
         const count = (key: string) => typeof usage?.[key] === 'number' && Number.isSafeInteger(usage[key])
           ? Math.max(0, Math.min(usage[key] as number, 1_000_000)) : 0;
-        await db.assistantUsageDay.update({ where: { day }, data: {
-          inputTokens: { increment: count('total_input_tokens') },
-          outputTokens: { increment: count('total_output_tokens') + count('total_thought_tokens') }
-        } });
+        const inputTokens = count('total_input_tokens');
+        const outputTokens = count('total_output_tokens') + count('total_thought_tokens');
+        // Release the unused reservation only with complete, trustworthy usage.
+        // Missing/malformed usage and failed requests retain the full reservation.
+        const complete = ['total_input_tokens', 'total_output_tokens', 'total_thought_tokens'].every(key =>
+          typeof usage?.[key] === 'number' && Number.isSafeInteger(usage[key]) && usage[key] >= 0 && usage[key] <= 1_000_000);
+        const actual = complete ? Math.ceil(inputTokens * config.ASSISTANT_INPUT_USD_PER_MILLION
+          + outputTokens * config.ASSISTANT_OUTPUT_USD_PER_MILLION) : micros;
+        try {
+          await db.assistantUsageDay.update({ where: { day }, data: {
+            inputTokens: { increment: inputTokens }, outputTokens: { increment: outputTokens },
+            reservedMicros: { increment: actual - micros }
+          } });
+        } catch (error) {
+          // Keeping the reservation is safe; do not generate again to record usage.
+          console.warn('Anime assistant usage recording failed:', error instanceof Error ? error.name : 'Unknown error');
+        }
       };
     }
   };

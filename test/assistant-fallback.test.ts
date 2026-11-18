@@ -142,10 +142,10 @@ describe('Gemini model fallback', () => {
       const interpreter = createGeminiInterpreter({ GEMINI_API_KEY: 'test-key' }, fetcher);
       await interpreter.plan(input, new AbortController().signal);
       now += 61000;
-      await interpreter.plan(input, new AbortController().signal);
+      await interpreter.plan({ ...input, message: 'A different adventure' }, new AbortController().signal);
       expect(requested(fetcher)).toEqual([primary, backup, backup]);
       now += 60000;
-      await interpreter.plan(input, new AbortController().signal);
+      await interpreter.plan({ ...input, message: 'Another adventure' }, new AbortController().signal);
       expect(requested(fetcher).at(-1)).toBe(primary);
     }
   );
@@ -160,10 +160,10 @@ describe('Gemini model fallback', () => {
     const interpreter = createGeminiInterpreter({ GEMINI_API_KEY: 'test-key' }, fetcher);
     await interpreter.plan(input, new AbortController().signal);
     now += 60001;
-    await interpreter.plan(input, new AbortController().signal);
+    await interpreter.plan({ ...input, message: 'A different adventure' }, new AbortController().signal);
     expect(requested(fetcher)).toEqual([primary, backup, backup]);
     now += 240000;
-    await interpreter.plan(input, new AbortController().signal);
+    await interpreter.plan({ ...input, message: 'Another adventure' }, new AbortController().signal);
     expect(requested(fetcher).at(-1)).toBe(primary);
   });
 
@@ -233,7 +233,7 @@ describe('Gemini model fallback', () => {
         input,
         controller.signal
       )
-    ).rejects.toMatchObject({ code: 'ASSISTANT_UNAVAILABLE' });
+    ).rejects.toMatchObject({ name: 'AbortError' });
     expect(fetcher).not.toHaveBeenCalled();
   });
 
@@ -249,7 +249,7 @@ describe('Gemini model fallback', () => {
         input,
         controller.signal
       )
-    ).rejects.toMatchObject({ code: 'ASSISTANT_UNAVAILABLE' });
+    ).rejects.toMatchObject({ name: 'AbortError' });
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
